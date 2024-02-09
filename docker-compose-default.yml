@@ -1,0 +1,211 @@
+version: "3"
+networks:
+  network:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.128.2.0/24
+
+services:
+  heimdall:
+    image: linuxserver/heimdall:2.5.6
+    container_name: heimdall
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=Asia/Shanghai
+    volumes:
+      - ${CONFIG_PATH}/heimdall:/config
+    ports:
+      - 60211:443
+    networks:
+      network:
+        ipv4_address: 172.128.2.11
+
+  portainer:
+    image: 6053537/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CONFIG_PATH}/portainer:/data
+    ports:
+      - 60212:9000
+    networks:
+      network:
+        ipv4_address: 172.128.2.12
+
+  flaresolverr:
+    image: flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - 60213:8191
+    networks:
+      network:
+        ipv4_address: 172.128.2.13
+
+  prowlarr:
+    image: linuxserver/prowlarr:develop
+    container_name: prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/prowlarr:/config
+    ports:
+      - 60223:9696
+    networks:
+      network:
+        ipv4_address: 172.128.2.23
+
+  jproxy:
+    image: luckypuppy514/jproxy:latest
+    container_name: jproxy
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - ${CONFIG_PATH}/jproxy/database:/app/database
+    ports:
+      - 60215:8117
+    networks:
+      network:
+        ipv4_address: 172.128.2.15
+
+  overseerr:
+    image: sctx/overseerr:latest
+    container_name: overseerr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/overseerr/config:/app/config
+    ports:
+      - 60216:5055
+    networks:
+      network:
+        ipv4_address: 172.128.2.16
+    depends_on:
+      - sonarr
+      - radarr
+
+  radarr:
+    image: linuxserver/radarr:5.2.6
+    container_name: radarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/radarr:/config
+      - ${MEDIA_PATH}:/media/video
+    ports:
+      - 60217:7878
+    networks:
+      network:
+        ipv4_address: 172.128.2.17
+    depends_on:
+      - jproxy
+      - qbittorrent
+
+  sonarr:
+    image: linuxserver/sonarr:4.0.0
+    container_name: sonarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/sonarr:/config
+      - ${MEDIA_PATH}:/media/video
+    ports:
+      - 60218:8989
+    networks:
+      network:
+        ipv4_address: 172.128.2.18
+    depends_on:
+      - jproxy
+      - qbittorrent
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=60219
+    volumes:
+      - ${CONFIG_PATH}/qbittorrent:/config
+      - ${MEDIA_PATH}:/media/video
+    ports:
+      - 60219:60219
+      - 60881:6881
+      - 60881:6881/udp
+    networks:
+      network:
+        ipv4_address: 172.128.2.19
+
+  chinesesubfinder:
+    image: allanpk716/chinesesubfinder:latest-lite
+    container_name: chinesesubfinder
+    restart: unless-stopped
+    volumes:
+      - ${CONFIG_PATH}/chinesesubfinder:/config
+      - ${MEDIA_PATH}:/media/video
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - PERMS=true
+      - UMASK=022
+    hostname: chinesesubfinder
+    ports:
+      - 60221:19035
+      - 19037:19037
+    logging:
+        driver: "json-file"
+        options:
+          max-size: "100m"
+    networks:
+      network:
+        ipv4_address: 172.128.2.21
+
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    restart: unless-stopped
+    environment:
+      - UID=0
+      - GID=0
+      - GIDLIST=0
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/plex/config:/config
+      - ${MEDIA_PATH}:/media/video
+    ports:
+      - 60220:32400
+    networks:
+      network:
+        ipv4_address: 172.128.2.20
